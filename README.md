@@ -1,2 +1,3 @@
-# simpleserverclientchat
-A simple server and client chat 
+# A Simple Cliente-Server Chat
+
+This is a new version implemented.

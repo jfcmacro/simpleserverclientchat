@@ -8,11 +8,15 @@ import java.io.IOException;
 import java.net.Socket;
 
 class StubChatService implements Runnable {
+    enum ClientState { DISCONNECTED, CONNECTED, OFFLINE };
+
+    private static final String NACK = "NACK \n";
+    private static final String ACK  = "ACK \n";
     private ChatService chatService;
     private Socket client;
     private BufferedReader bf;
     private BufferedWriter bw;
-    private boolean isRunning = true;
+    private ClientState state;
 
     StubChatService(ChatService chatService,
                     Socket client) throws IOException {
@@ -20,59 +24,95 @@ class StubChatService implements Runnable {
         this.client = client;
         bf = new BufferedReader(new InputStreamReader(client.getInputStream()));
         bw = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
-        isRunning = true;
+        state = ClientState.DISCONNECTED;
         (new Thread(this)).start();
     }
 
     private String processMsg(String msg) {
-        String[] msgDec = msg.split(" ");
-        String reply = "ACK \n";
-        switch(msgDec[0].toUpperCase()) {
-        case "CONNECT":
-            reply = chatService.connect(msgDec[1], this) ?
-                reply : "NACK \n";
-            break;
-        case "STATUS": chatService.status(msgDec[1], this);
-            break;
-        case "MESSAGE": chatService.sendMessage(msgDec[1], this);
-            break;
-        case "DISCONNECT": chatService.disconnect(this);
-            isRunning = false;
-            break;
+        int spaceIdx = msg.indexOf(' ');
+        String msgDec[] = new String[2];
+        msgDec[0] = msg.substring(0, spaceIdx);
+        msgDec[1] = msg.substring(spaceIdx + 1);
+        String reply = NACK;
+        try {
+            switch(msgDec[0].toUpperCase()) {
+            case "CONNECT":
+                if (state == ClientState.DISCONNECTED) {
+                    if (chatService.connect(msgDec[1], this)) {
+                        state = ClientState.CONNECTED;
+                        reply = ACK;
+                    }
+                }
+                break;
+            case "STATUS":
+                if (state == ClientState.CONNECTED) {
+                    chatService.status(msgDec[1], this);
+                    reply = ACK;
+                }
+                break;
+
+            case "MESSAGE":
+                if (state == ClientState.CONNECTED) {
+                    chatService.sendMessage(msgDec[1], this);
+                    reply = ACK;
+                }
+                break;
+            case "DISCONNECT":
+                if (state == ClientState.CONNECTED) {
+                    chatService.disconnect(this);
+                    reply = ACK;
+                    state = ClientState.OFFLINE;
+                }
+                break;
+            }
+        }
+        catch (IOException ieo) {
         }
 
         return reply;
     }
 
-    private void request(String msg) {
-        bw.write(msg);
+    private void request(String msg) throws IOException {
+        bw.write(msg + "\n");
         bw.flush();
-        String reply = bf.readLine();
-        System.out.println(reply);
+        // String reply = bf.readLine();
+        // System.out.println(reply);
     }
 
-    void connect(String client) {
+    void connect(String client) throws IOException {
         request("CONNECT " + client);
     }
 
-    void status(String status) {
+    void status(String status) throws IOException {
         request("STATUS " + status);
     }
 
-    void sendMessage(String msg) {
+    void sendMessage(String msg) throws IOException {
         request("MESSAGE " + msg);
     }
 
-    void disconnect() {
-        request("DISCONNECT \n");
+    void disconnect() throws IOException {
+        request("DISCONNECT ");
     }
 
     public void run() {
-        while (isRunning) {
-            String msg = bf.readLine();
-            String replyMsg = processMsg(msg);
-            bw.write(replyMsg);
-            bw.flush();
+        while (state != ClientState.OFFLINE) {
+            try {
+                String msg = bf.readLine();
+                String replyMsg = processMsg(msg);
+                bw.write(replyMsg);
+                bw.flush();
+            }
+            catch (IOException ioe) {
+                state = ClientState.OFFLINE;
+            }
+        }
+        try {
+            bf.close();
+            bw.close();
+            client.close();
+        }
+        catch (IOException ioe) { 
         }
     }
 }
