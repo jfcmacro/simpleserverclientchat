@@ -26,7 +26,7 @@ public class ChatService {
             stub.sendMessage(msg);
     }
 
-    public void disconnect(StubChatService stub) throws IOException {
+    public void disconnect(StubChatService other) throws IOException {
         if (stub != null) {
             stub.disconnect();
             stub = null;

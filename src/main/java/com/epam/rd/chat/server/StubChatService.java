@@ -67,6 +67,7 @@ class StubChatService implements Runnable {
             }
         }
         catch (IOException ieo) {
+            state = ClientState.OFFLINE;
         }
 
         return reply;
@@ -75,12 +76,10 @@ class StubChatService implements Runnable {
     private void request(String msg) throws IOException {
         bw.write(msg + "\n");
         bw.flush();
-        // String reply = bf.readLine();
-        // System.out.println(reply);
     }
 
-    void connect(String client) throws IOException {
-        request("CONNECT " + client);
+    void connect(String pear) throws IOException {
+        request("CONNECT " + pear);
     }
 
     void status(String status) throws IOException {
@@ -112,7 +111,7 @@ class StubChatService implements Runnable {
             bw.close();
             client.close();
         }
-        catch (IOException ioe) { 
+        catch (IOException ioe) {
         }
     }
 }
