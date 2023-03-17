@@ -4,10 +4,15 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.ServerSocket;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.ParseException;
 
 public class ChatServer implements Runnable {
 
-    private static final int CHATPORT = 2099;
+    private static final String DEFAULT_PORT = "2099";
 
     private ChatService chatService;
     private ServerSocket serverSocket;
@@ -19,6 +24,7 @@ public class ChatServer implements Runnable {
         this.running = true;
     }
 
+    @Override
     public void run() {
         boolean running = true;
         while (running) {
@@ -40,16 +46,35 @@ public class ChatServer implements Runnable {
 
     public static void main(String args[]) {
 
+        Options options =
+            new Options()
+            .addOption("p", true, "Port number")
+            .addOption("e", false, "Enable an echo server");
+
+        CommandLineParser clp = new DefaultParser();
+
         ChatServer chatServer = null;
         try {
-            ChatService chatService = new ChatService();
+
+            CommandLine cl = clp.parse(options, args);
+
+            int portServer = Integer.parseInt(cl.getOptionValue("p",
+                                                                DEFAULT_PORT));
+            boolean echoServer = cl.hasOption("e") ? true : false;
+
+            ChatService chatService = new ChatService(echoServer);
             chatServer = new ChatServer(chatService,
-                                        CHATPORT);
+                                        portServer);
             chatServer.run();
+        }
+        catch (ParseException pe) {
+            System.err.println("Invalid option: " + pe);
+            System.exit(1);
         }
         catch (IOException ioe) {
             System.err.println("Main exception: " + ioe);
-            chatServer.stop();
+            if (chatServer != null) chatServer.stop();
+            System.exit(1);
         }
     }
 }

@@ -7,90 +7,136 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Condition;
+
+enum ACKTYPES { NO_ACK, ACK_WAITING, ACK_RECEIVED, NACK_RECEIVED };
 
 class StubChatClient implements Runnable {
 
     private Socket socket;
     private BufferedReader bf;
     private BufferedWriter bw;
+    private ChatClient chatClient;
     private static final String CONNECT = "CONNECT ";
     private static final String STATUS = "STATUS ";
     private static final String MESSAGE = "MESSAGE ";
     private static final String DISCONNECT = "DISCONNECT ";
     private static final String EOL = "\n";
     private boolean running;
+    private Lock receiveLock;
+    private Condition receivedAck;
+    private ACKTYPES ackReceived;
 
-    StubChatClient(String host, int port)
+    StubChatClient(ChatClient chatClient, String host, int port)
         throws UnknownHostException, IOException {
-        socket = new Socket(host, port);
-        bf = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-        running = true;
+        this.chatClient = chatClient;
+        this.socket = new Socket(host, port);
+        this.bf = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        this.bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        receiveLock = new ReentrantLock();
+        receivedAck = receiveLock.newCondition();
+        this.running = true;
+        ackReceived = ACKTYPES.NO_ACK;
         (new Thread(this)).start();
     }
 
-    private void send(String message) throws IOException {
+    private boolean send(String message) throws IOException {
         bw.write(message + EOL);
         bw.flush();
+        return receive();
+    }
+
+    private boolean receive() throws IOException {
+        boolean retValue = true;
+
+        receiveLock.lock();
+        try {
+            ackReceived = ACKTYPES.ACK_WAITING;
+            receivedAck.await();
+            retValue = ackReceived == ACKTYPES.ACK_RECEIVED;
+            System.out.println("ackReceived: " + ackReceived.name());
+        } catch (InterruptedException ie) {
+            ackReceived = ACKTYPES.NACK_RECEIVED;
+        } finally {
+            receiveLock.unlock();
+        }
+
+        return retValue;
+    }
+
+    private void receiveAnyAck(boolean ack) {
+        receiveLock.lock();
+        try {
+            ackReceived = ack ? ACKTYPES.ACK_RECEIVED : ACKTYPES.NACK_RECEIVED;
+            receivedAck.signal();
+        } finally {
+            receiveLock.unlock();
+        }
     }
 
     private void processMsg(String msg) {
         int spaceIdx = msg.indexOf(' ');
         String msgDes[] = new String[2];
+
         msgDes[0] = msg.substring(0, spaceIdx);
         msgDes[1] = msg.substring(spaceIdx + 1);
+
         switch(msgDes[0].toUpperCase()) {
         case "CONNECT":
-            System.out.println("User connected: " + msgDes[1]);
+            chatClient.setRemoteConnected();
             break;
 
         case "STATUS":
-            System.out.println("Status: " + msgDes[1]);
+            chatClient.setRemoteStatus(msgDes[1]);
             break;
 
         case "MESSAGE":
-            System.out.println("Message: " + msgDes[1]);
+            chatClient.receiveRemoteMsg(msgDes[1]);
             break;
 
         case "DISCONNECT":
-            running = false;
+            chatClient.setRemoteDisconnected();
             break;
 
         case "ACK":
-            System.out.println("ACK received");
+            receiveAnyAck(true);
             break;
 
         case "NACK":
-            System.out.println("NACK received");
+            receiveAnyAck(false);
             break;
         }
     }
 
-    public void receive() throws IOException {
-        String reply = bf.readLine();
-    }
-
     public boolean connect(String name) throws IOException {
-        send(CONNECT + name);
-        return false;
+        return send(CONNECT + name);
     }
 
-    public void status(String status) throws IOException {
-        send(STATUS + status);
+    public boolean status(String status) throws IOException {
+        return send(STATUS + status);
     }
 
-    public void sendMessage(String msg) throws IOException {
-        send(MESSAGE + msg);
+    public boolean sendMessage(String msg) throws IOException {
+        return send(MESSAGE + msg);
     }
 
-    public void disconnect() throws IOException {
-        send(DISCONNECT);
+    public boolean disconnect() throws IOException {
+        boolean retValue = send(DISCONNECT);
+        if (retValue) running = false;
+        return retValue;
     }
 
+    @Override
     public void run() {
         while (running) {
-            try { 
+            try {
                 String msg = bf.readLine();
+                if (msg == null) {
+                    running = false;
+                    continue;
+                }
                 processMsg(msg);
             } catch (IOException ioe) {
                 running = false;

@@ -94,10 +94,19 @@ class StubChatService implements Runnable {
         request("DISCONNECT ");
     }
 
+    String getSocketString() {
+        return client.toString();
+    }
+
+    @Override
     public void run() {
         while (state != ClientState.OFFLINE) {
             try {
                 String msg = bf.readLine();
+                if (msg == null) {
+                    state = ClientState.OFFLINE;
+                    continue;
+                }
                 String replyMsg = processMsg(msg);
                 bw.write(replyMsg);
                 bw.flush();
