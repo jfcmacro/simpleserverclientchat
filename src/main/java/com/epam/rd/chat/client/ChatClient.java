@@ -1,43 +1,51 @@
 package com.epam.rd.chat.client;
 
+import java.lang.reflect.Array;
 import java.util.List;
+import java.util.Vector;
 import java.util.ArrayList;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
-public class ChatClient {
-    private List<String> messages[];
+public class ChatClient implements IChatClient,
+                                   ObservableChatEvent {
+    private List<List<String>> messages;
     private String status[];
     private StubChatClient stub;
     private boolean partyConnected;
+    private List<ChatObserver> observers;
 
     public ChatClient(String host, int port)
         throws UnknownHostException, IOException {
         this.stub = new StubChatClient(this, host, port);
+        this.messages = new Vector<>(ChatUser.values().length);
+        this.observers = new ArrayList<>();
 
-        this.messages = new List[ChatUser.values().length];
-        for (ChatUser cu : ChatUser.values()) {
-            messages[cu.ordinal()] = new ArrayList<>();
-        }
+        for (ChatUser cu : ChatUser.values())
+            messages.add(cu.ordinal(), new ArrayList<>());
 
         this.status = new String[ChatUser.values().length];
 
         this.partyConnected = false;
     }
 
-    public boolean connect(String user) throws IOException {
+    public boolean connect(String user)
+        throws IOException {
         return stub.connect(user);
     }
 
-    public boolean message(String msg)
+    public boolean sendMessage(String msg)
         throws IOException {
         if (!partyConnected) return false;
 
         boolean retValue = stub.sendMessage(msg);
 
-        if (retValue)
-            messages[ChatUser.LOCAL.ordinal()].add(msg);
+        if (retValue) {
+            messages.get(ChatUser.LOCAL.ordinal()).add(msg);
+            ChatEvent.SENDMSG_CHATEVENT.setData(msg);
+            notifyObservers(ChatEvent.SENDMSG_CHATEVENT);
+        }
 
         return retValue;
     }
@@ -54,7 +62,8 @@ public class ChatClient {
         return retValue;
     }
 
-    public boolean disconnect() throws IOException {
+    public boolean disconnect()
+        throws IOException {
         return stub.disconnect();
     }
 
@@ -64,11 +73,11 @@ public class ChatClient {
         if (from < 0 || to < 0)
             throw new IllegalArgumentException("Argument with negative value");
 
-        return messages[user.ordinal()].subList(from, to);
+        return messages.get(user.ordinal()).subList(from, to);
     }
 
-    public int numberMessages(ChatUser user) {
-        return messages[user.ordinal()].size();
+    public int getNumberMessages(ChatUser user) {
+        return messages.get(user.ordinal()).size();
     }
 
     public String getStatus(ChatUser user) {
@@ -77,6 +86,7 @@ public class ChatClient {
 
     public void setRemoteConnected() {
         partyConnected = true;
+        notifyObservers(ChatEvent.CONNECT_CHATEVENT);
     }
 
     public void setRemoteStatus(String st) {
@@ -84,10 +94,26 @@ public class ChatClient {
     }
 
     public void receiveRemoteMsg(String msg) {
-        messages[ChatUser.REMOTE.ordinal()].add(msg);
+        messages.get(ChatUser.REMOTE.ordinal()).add(msg);
+        ChatEvent.RECEIVEMSG_CHATEVENT.setData(msg);
+        notifyObservers(ChatEvent.RECEIVEMSG_CHATEVENT);
     }
 
     public void setRemoteDisconnected() {
         partyConnected = false;
+        notifyObservers(ChatEvent.DISCONNECT_CHATEVENT);
+    }
+
+    public void addObserver(ChatObserver o) {
+        observers.add(o);
+    }
+
+    public void removeObserver(ChatObserver o) {
+        observers.remove(o);
+    }
+
+    public void notifyObservers(ChatEvent event) {
+        observers.stream()
+            .forEach((o) -> o.handleEvent(event));
     }
 }

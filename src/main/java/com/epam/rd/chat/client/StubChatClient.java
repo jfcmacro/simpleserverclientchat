@@ -13,7 +13,7 @@ import java.util.concurrent.locks.Condition;
 
 enum ACKTYPES { NO_ACK, ACK_WAITING, ACK_RECEIVED, NACK_RECEIVED };
 
-class StubChatClient implements Runnable {
+class StubChatClient implements Runnable,ChatClientService {
 
     private Socket socket;
     private BufferedReader bf;
@@ -56,7 +56,7 @@ class StubChatClient implements Runnable {
             ackReceived = ACKTYPES.ACK_WAITING;
             receivedAck.await();
             retValue = ackReceived == ACKTYPES.ACK_RECEIVED;
-            System.out.println("ackReceived: " + ackReceived.name());
+            // System.out.println("ackReceived: " + ackReceived.name());
         } catch (InterruptedException ie) {
             ackReceived = ACKTYPES.NACK_RECEIVED;
         } finally {
