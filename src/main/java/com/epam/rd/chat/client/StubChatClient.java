@@ -18,7 +18,7 @@ class StubChatClient implements Runnable,ChatClientService {
     private Socket socket;
     private BufferedReader bf;
     private BufferedWriter bw;
-    private ChatClient chatClient;
+    private IChatClient chatClient;
     private static final String CONNECT = "CONNECT ";
     private static final String STATUS = "STATUS ";
     private static final String MESSAGE = "MESSAGE ";
@@ -29,12 +29,16 @@ class StubChatClient implements Runnable,ChatClientService {
     private Condition receivedAck;
     private ACKTYPES ackReceived;
 
-    StubChatClient(ChatClient chatClient, String host, int port)
+    StubChatClient(IChatClient chatClient, String host, int port)
         throws UnknownHostException, IOException {
         this.chatClient = chatClient;
         this.socket = new Socket(host, port);
-        this.bf = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        this.bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        this.bf =
+            new BufferedReader(new InputStreamReader(socket
+                                                     .getInputStream()));
+        this.bw =
+            new BufferedWriter(new OutputStreamWriter(socket
+                                                      .getOutputStream()));
         receiveLock = new ReentrantLock();
         receivedAck = receiveLock.newCondition();
         this.running = true;
@@ -42,13 +46,18 @@ class StubChatClient implements Runnable,ChatClientService {
         (new Thread(this)).start();
     }
 
-    private boolean send(String message) throws IOException {
+    private boolean send(String message)
+        throws IOException {
+        if (ChatClientControl.logger != null) {
+            ChatClientControl.logger.info("Send message: " + message);
+        }
         bw.write(message + EOL);
         bw.flush();
         return receive();
     }
 
-    private boolean receive() throws IOException {
+    private boolean receive()
+        throws IOException {
         boolean retValue = true;
 
         receiveLock.lock();
@@ -56,7 +65,10 @@ class StubChatClient implements Runnable,ChatClientService {
             ackReceived = ACKTYPES.ACK_WAITING;
             receivedAck.await();
             retValue = ackReceived == ACKTYPES.ACK_RECEIVED;
-            // System.out.println("ackReceived: " + ackReceived.name());
+            if (ChatClientControl.logger != null) {
+                ChatClientControl.logger.info("ackReceived: " +
+                                              ackReceived.name());
+            }
         } catch (InterruptedException ie) {
             ackReceived = ACKTYPES.NACK_RECEIVED;
         } finally {
@@ -110,15 +122,18 @@ class StubChatClient implements Runnable,ChatClientService {
         }
     }
 
-    public boolean connect(String name) throws IOException {
+    public boolean connect(String name)
+        throws IOException {
         return send(CONNECT + name);
     }
 
-    public boolean status(String status) throws IOException {
+    public boolean status(String status)
+        throws IOException {
         return send(STATUS + status);
     }
 
-    public boolean sendMessage(String msg) throws IOException {
+    public boolean sendMessage(String msg)
+        throws IOException {
         return send(MESSAGE + msg);
     }
 

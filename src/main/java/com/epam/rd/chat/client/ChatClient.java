@@ -39,12 +39,20 @@ public class ChatClient implements IChatClient,
         throws IOException {
         if (!partyConnected) return false;
 
+        if (ChatClientControl.logger != null) {
+            ChatClientControl.logger.info("Stub sendMessage: " + msg);
+        }
+
         boolean retValue = stub.sendMessage(msg);
+
+        if (ChatClientControl.logger != null) {
+            ChatClientControl.logger.info("Stub send message: " + retValue);
+        }
 
         if (retValue) {
             messages.get(ChatUser.LOCAL.ordinal()).add(msg);
-            ChatEvent.SENDMSG_CHATEVENT.setData(msg);
-            notifyObservers(ChatEvent.SENDMSG_CHATEVENT);
+            // ChatEvent.SENDMSG_CHATEVENT.setData(msg);
+            notifyObservers(ChatEvent.SENDMSG_CHATEVENT, msg);
         }
 
         return retValue;
@@ -86,7 +94,7 @@ public class ChatClient implements IChatClient,
 
     public void setRemoteConnected() {
         partyConnected = true;
-        notifyObservers(ChatEvent.CONNECT_CHATEVENT);
+        notifyObservers(ChatEvent.CONNECT_CHATEVENT,"");
     }
 
     public void setRemoteStatus(String st) {
@@ -95,13 +103,12 @@ public class ChatClient implements IChatClient,
 
     public void receiveRemoteMsg(String msg) {
         messages.get(ChatUser.REMOTE.ordinal()).add(msg);
-        ChatEvent.RECEIVEMSG_CHATEVENT.setData(msg);
-        notifyObservers(ChatEvent.RECEIVEMSG_CHATEVENT);
+        notifyObservers(ChatEvent.RECEIVEMSG_CHATEVENT, msg);
     }
 
     public void setRemoteDisconnected() {
         partyConnected = false;
-        notifyObservers(ChatEvent.DISCONNECT_CHATEVENT);
+        notifyObservers(ChatEvent.DISCONNECT_CHATEVENT, "");
     }
 
     public void addObserver(ChatObserver o) {
@@ -112,8 +119,8 @@ public class ChatClient implements IChatClient,
         observers.remove(o);
     }
 
-    public void notifyObservers(ChatEvent event) {
+    public void notifyObservers(ChatEvent event, String data) {
         observers.stream()
-            .forEach((o) -> o.handleEvent(event));
+            .forEach((o) -> o.handleEvent(event, data));
     }
 }

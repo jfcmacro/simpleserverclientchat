@@ -22,6 +22,9 @@ public class Client {
         } catch (UnknownHostException uhe) {
             System.err.println("Unknown Host Name Exception: " + uhe);
             System.exit(1);
+        } catch (SecurityException se) {
+            System.err.println("Security exception: " + se);
+            System.exit(1);
         } catch (IOException ioe) {
             System.err.println("IOException: " + ioe);
             System.exit(1);

@@ -3,7 +3,7 @@ package com.epam.rd.chat.client;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.io.IOException;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.TerminalSize;
@@ -42,7 +42,7 @@ class ChatWindow extends BasicWindow
     private Button buttonSend;
     private Button buttonCancel;
     private MultiWindowTextGUI gui;
-    private Map<ChatEvent, Consumer<ChatEvent>> eventActions;
+    private Map<ChatEvent, BiConsumer<ChatEvent,String>> eventActions;
     private ChatClientControl chatClientCtrl;
     private IChatClient chatClient;
 
@@ -64,6 +64,7 @@ class ChatWindow extends BasicWindow
     ChatWindow(IChatClient chatClient, ChatClientControl chatClientCtrl)
         throws IOException {
         this.chatClient = chatClient;
+        ((ObservableChatEvent) this.chatClient).addObserver(this);
         this.chatClientCtrl = chatClientCtrl;
         terminal = new DefaultTerminalFactory().createTerminal();
         screen = new TerminalScreen(terminal);
@@ -158,26 +159,25 @@ class ChatWindow extends BasicWindow
                                      new DefaultWindowManager(),
                                      new EmptySpace(TextColor.ANSI.BLUE));
 
-        eventActions.put(ChatEvent.CONNECT_CHATEVENT, (e) -> {
-                String data = e.getData();
+        eventActions.put(ChatEvent.CONNECT_CHATEVENT, (e,d) -> {
                 return;
             });
-        eventActions.put(ChatEvent.DISCONNECT_CHATEVENT, (e) -> {
+        eventActions.put(ChatEvent.DISCONNECT_CHATEVENT, (e,d) -> {
                 return;
             });
-        eventActions.put(ChatEvent.RECEIVEMSG_CHATEVENT, (e) -> {
-                pushRemoteMsg(e.getData());
+        eventActions.put(ChatEvent.RECEIVEMSG_CHATEVENT, (e,d) -> {
+                pushRemoteMsg(d);
                 return;
             });
-        eventActions.put(ChatEvent.SENDMSG_CHATEVENT, (e) -> {
-                pushLocalMsg(e.getData());
-                return;
-            });
+        eventActions.put(ChatEvent.SENDMSG_CHATEVENT, (e,d) -> {
+                pushLocalMsg(d);
+                return; 
+           });
         gui.addWindowAndWait(this);
         screen.stopScreen();
     }
 
-    public void handleEvent(ChatEvent event) {
-        eventActions.get(event).accept(event);
+    public void handleEvent(ChatEvent event, String data) {
+        eventActions.get(event).accept(event, data);
     }
 }
