@@ -23,7 +23,7 @@ public class ChatService {
             if (stubs[i].getSocketString().equals(stub.getSocketString()))
                 break;
 
-        return i + 1 % 2;
+        return (i + 1) % 2;
     }
 
     public boolean connect(String name,
@@ -43,8 +43,15 @@ public class ChatService {
             stubsName[nConnected++] = name;
         }
 
-        if (nConnected == stubs.length)
-            stubs[indexOtherStub(stub)].connect(name);
+        if (nConnected == stubs.length) {
+            if (echo) 
+                stubs[indexOtherStub(stub)].connect(name);
+            else {
+                for (int i = 0; i < stubs.length; i++) {
+                    stubs[i].connect(stubsName[(i + 1) % 2]);
+                }
+            }
+        }
 
         return true;
     }

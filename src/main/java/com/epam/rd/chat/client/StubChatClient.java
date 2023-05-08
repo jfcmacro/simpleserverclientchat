@@ -13,8 +13,8 @@ import java.util.concurrent.locks.Condition;
 
 enum ACKTYPES { NO_ACK, ACK_WAITING, ACK_RECEIVED, NACK_RECEIVED };
 
-class StubChatClient implements Runnable,ChatClientService {
-
+class StubChatClient implements Runnable,
+                                ChatClientService {
     private Socket socket;
     private BufferedReader bf;
     private BufferedWriter bw;
@@ -139,7 +139,16 @@ class StubChatClient implements Runnable,ChatClientService {
 
     public boolean disconnect() throws IOException {
         boolean retValue = send(DISCONNECT);
-        if (retValue) running = false;
+        // if (retValue) {
+        //     if (running)
+        //         running = false;
+        // }
+        if (running) {
+            // bf.close();
+            // bw.close();
+            // socket.close();
+            running = false;
+        }
         return retValue;
     }
 

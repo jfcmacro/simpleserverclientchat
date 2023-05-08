@@ -36,11 +36,14 @@ class ChatWindow extends BasicWindow
     private Panel remotePanel;
     private Panel localPanel;
     private Panel buttonsPanel;
+    private Panel statusPanel;
     private Label remoteLabels[];
     private Label localLabels[];
+    private Label statusLabels[];
     private TextBox inputText;
     private Button buttonSend;
     private Button buttonCancel;
+    private Button buttonClose;
     private MultiWindowTextGUI gui;
     private Map<ChatEvent, BiConsumer<ChatEvent,String>> eventActions;
     private ChatClientControl chatClientCtrl;
@@ -75,11 +78,13 @@ class ChatWindow extends BasicWindow
 
         TerminalSize termSize = terminal
             .getTerminalSize();
+
         int panelCols = termSize.getColumns();
-        int panelRows = termSize.getRows() / 2;
+        int panelRows = (termSize.getRows() - 1) / 2;
+
         termSize = termSize
-            .withRows(termSize.getRows() - 1)
-            .withColumns(termSize.getColumns() - 2);
+            .withRows(termSize.getRows())
+            .withColumns(termSize.getColumns());
 
         mainPanel = new Panel()
             .setPreferredSize(termSize)
@@ -119,10 +124,6 @@ class ChatWindow extends BasicWindow
         buttonSend = new Button("Send");
 
         buttonSend.addListener(button -> {
-                // String text = inputText.getText();
-                // inputText.setText("");
-                // pushLocalMsg(text);
-                // inputText.takeFocus();
                 try {
                     this.chatClientCtrl.sendMessage(inputText.getText());
                 }
@@ -142,18 +143,56 @@ class ChatWindow extends BasicWindow
         buttonCancel.addListener(button -> inputText
                                  .setText("").takeFocus());
 
+        buttonClose = new Button("Close");
+
+        buttonClose.addListener(button -> {
+                if (ChatClientControl.logger != null) {
+                    ChatClientControl.logger.info("Close");
+                }
+                try {
+                    screen.stopScreen();
+                    this.chatClientCtrl.disconnect();
+                } catch (IOException ioe2) { }
+            });
+
         buttonsPanel
             .addComponent(buttonSend)
-            .addComponent(buttonCancel);
+            .addComponent(buttonCancel)
+            .addComponent(buttonClose);
 
         localPanel.addComponent(buttonsPanel);
 
+        statusPanel = new Panel()
+            .setPreferredSize(new TerminalSize(panelCols,
+                                               1))
+            .setLayoutManager(new LinearLayout(Direction.HORIZONTAL));
+
+        statusLabels = new Label[3];
+        statusLabels[0] = new Label("Local: status")
+            .setLayoutData(LinearLayout
+                           .createLayoutData(LinearLayout
+                                             .Alignment.Beginning));
+        statusLabels[1] = new Label("")
+            .setLayoutData(LinearLayout
+                           .createLayoutData(LinearLayout
+                                             .Alignment.Fill));
+        statusLabels[2] = new Label("Remote: status")
+            .setLayoutData(LinearLayout
+                           .createLayoutData(LinearLayout
+                                             .Alignment.End));
+
+        statusPanel
+            .addComponent(statusLabels[0])
+            .addComponent(statusLabels[1])
+            .addComponent(statusLabels[2]);
+
         mainPanel
             .addComponent(remotePanel
-                          .withBorder(Borders.singleLine("Remote")));
-        mainPanel
+                          .withBorder(Borders.singleLine("Remote")))
             .addComponent(localPanel
-                          .withBorder(Borders.singleLine("Local")));
+                          .withBorder(Borders.singleLine("Local")))
+            .addComponent(statusPanel);
+
         this.setComponent(mainPanel);
         gui = new MultiWindowTextGUI(screen,
                                      new DefaultWindowManager(),
@@ -171,10 +210,9 @@ class ChatWindow extends BasicWindow
             });
         eventActions.put(ChatEvent.SENDMSG_CHATEVENT, (e,d) -> {
                 pushLocalMsg(d);
-                return; 
+                return;
            });
         gui.addWindowAndWait(this);
-        screen.stopScreen();
     }
 
     public void handleEvent(ChatEvent event, String data) {
